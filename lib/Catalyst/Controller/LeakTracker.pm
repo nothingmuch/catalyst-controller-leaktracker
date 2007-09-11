@@ -33,7 +33,7 @@ sub list_requests : Local {
         #$req = \@events;
         #next;
 
-        my %dispatch = ( type => @{ ($log->grep( dispatch => \@events ))[0] || [] } );
+        my %dispatch = ( type => @{ ($log->grep( dispatch => \@events ))[0] || [ "dispatch" ] } );
 
         $req = {
             id     => $id,
@@ -58,11 +58,11 @@ sub list_requests : Local {
     };
 
     $c->response->body( join "\n",
-        "<table>",
-            join('', "<tr>", ( map { "<th>$_</th>" } @fields ), "</tr>"),
+        q{<table border="1" style="border: 1px solid black; padding: 0.3em">},
+            join('', "<tr>", ( map { qq{<th style="padding: 0.2em">$_</th>} } @fields ), "</tr>"),
             ( map { my $req = $_;
                 join ( '', "<tr>",
-                    ( map { "<td>" . $fmt{$_}->($req->{$_}) . "</td>" } @fields ),
+                    ( map { '<td style="padding: 0.2em">' . $fmt{$_}->($req->{$_}) . "</td>" } @fields ),
                 "</tr>" );
             } @requests),
         "</table>"
