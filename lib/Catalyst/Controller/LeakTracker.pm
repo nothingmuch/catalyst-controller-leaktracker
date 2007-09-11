@@ -113,10 +113,16 @@ $log_output
 }
 
 sub leak : Local {
-    my ( $self, $c ) = @_;
+    my ( $self, $c, $n ) = @_;
 
-    my $object = bless {}, "class::a";
-    $object->{foo}{self} = $object;
+    $n ||= 1;
+
+    $n = 300 if $n > 300;
+
+    for ( 1 .. $n ) {
+        my $object = bless {}, "class::a";
+        $object->{foo}{self} = $object;
+    }
 
     use Scalar::Util qw/weaken/;
     my $object2 = bless {}, "class::b";
@@ -124,9 +130,9 @@ sub leak : Local {
     weaken($object2->{foo}{self});
 
     my $object3 = bless [], "class::c";
-    push @$object3,  $object3;
+    push @$object3, $object3, map { [ 1 .. $n ] } 1 .. $n;
 
-    $c->res->body("it leaks");
+    $c->res->body("it leaks " . ( $n + 1 ) . " objects");
 }
 
 __PACKAGE__;
