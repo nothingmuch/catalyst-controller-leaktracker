@@ -35,16 +35,22 @@ sub list_requests : Local {
 
         my %dispatch = ( type => @{ ($log->grep( dispatch => \@events ))[0] || [ "dispatch" ] } );
 
+        my $leaked = $trackers->{$id}->live_objects;
+
+        use Devel::Size;
+        my $size = Devel::Size::total_size([ keys %$leaked ]) - Devel::Size::total_size([]);
+
         $req = {
             id     => $id,
             time   => $req{time},
             uri    => $dispatch{uri},
             action => $dispatch{action_name},
-            leaks  => scalar( keys %{ $trackers->{$id}->live_objects } ),
+            leaks  => scalar( keys %$leaked ),
+            size   => $size,
         };
     }
 
-    my @fields = qw(id time action leaks uri);
+    my @fields = qw(id time action leaks size uri);
 
     my %fmt = map { $_ => sub { $_[0] } } @fields;
 
@@ -55,6 +61,13 @@ sub list_requests : Local {
 
     $fmt{time} = sub {
         localtime(int(shift));
+    };
+
+    $fmt{size} = sub {
+        use Number::Bytes::Human;
+        my $h = Number::Bytes::Human->new;
+        $h->set_options(zero => '-');
+        $h->format(shift);
     };
 
     $c->response->body( join "\n",
