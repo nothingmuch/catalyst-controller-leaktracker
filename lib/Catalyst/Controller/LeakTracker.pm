@@ -102,8 +102,6 @@ sub object : Local {
 
     my $obj = $obj_entry->{object};
 
-    warn Data::Dump::dump($obj_entry);
-
     my $stack_dump = $stack_dump_cache{$obj} ||= do {
         my @stack = $c->generate_stack_for_event( $request_id, $id );
 
