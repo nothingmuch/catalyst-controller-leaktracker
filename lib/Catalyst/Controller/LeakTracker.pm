@@ -6,49 +6,56 @@ use base qw/Catalyst::Controller/;
 use strict;
 use warnings;
 
+use Data::Dump ();
+use Devel::Cycle ();
+use Devel::Size ();
+use Tie::RefHash::Weak ();
+use YAML::Syck ();
+
 sub default : Private {
     my ( $self, $c ) = @_;
 
     $c->forward('list_requests');
 }
 
+my $size_of_empty_array = Devel::Size::total_size([]);
+tie my %leak_size_cache, 'Tie::RefHash::Weak';
+
 sub list_requests : Local {
     my ( $self, $c ) = @_;
 
-    my $log = $c->devel_events_log;
+    my $log = $c->devel_events_log; # FIXME used for grepping, switch to exported when that api is available.
 
-    my $trackers = $c->object_tracker_hash;
+    my @request_events = $c->get_all_request_events;
 
-    my @requests = $log->grep("request_begin");
+    pop @request_events; # current request
 
-    pop @requests; # current request
+    my @requests;
 
-    foreach my $req ( @requests ) {
-        my %req = ( type => @$req );
+    foreach my $req_events ( @request_events ) {
+        my $request_id = $req_events->{id};
+        my $events = $req_events->{events};
 
-        my $id = $req{request_id};
+        my ( undef, %req ) = @{ $events->[0] };
 
-        my @events = $log->limit( from => { request_id => $id }, to => "request_end" );
+        my $dispatch = ( $log->grep( dispatch => $events ) )[0] || next;
+        my ( undef, %dispatch ) = @$dispatch;
 
-        #$req = \@events;
-        #next;
+        my $tracker = $c->get_object_tracker_by_id($request_id) || next;
+        my $leaked = $tracker->live_objects;
 
-        my %dispatch = ( type => @{ ($log->grep( dispatch => \@events ))[0] || [ "dispatch" ] } );
+        my $size = $leak_size_cache{$tracker} ||= ( Devel::Size::total_size([ keys %$leaked ]) - $size_of_empty_array );
 
-        my $leaked = $trackers->{$id}->live_objects;
-
-        use Devel::Size;
-        my $size = Devel::Size::total_size([ keys %$leaked ]) - Devel::Size::total_size([]);
-
-        $req = {
-            id     => $id,
+        push @requests, {
+            id     => $request_id,
             time   => $req{time},
             uri    => $dispatch{uri},
             action => $dispatch{action_name},
             leaks  => scalar( keys %$leaked ),
             size   => $size,
-        };
+        }
     }
+
 
     my @fields = qw(id time action leaks size uri);
 
@@ -84,39 +91,70 @@ sub list_requests : Local {
     $c->res->content_type("text/html");
 }
 
+tie my %cycle_report_cache, 'Tie::RefHash::Weak';
+tie my %object_dump_cache, 'Tie::RefHash::Weak';
+tie my %stack_dump_cache, 'Tie::RefHash::Weak';
+
 sub object : Local {
     my ( $self, $c, $request_id, $id ) = @_;
 
-    my $log = $c->devel_events_log;
+    my $obj_entry = $c->get_object_entry_by_id($request_id, $id) || die "No such object: $id";
 
-    my $trackers = $c->object_tracker_hash;
+    my $obj = $obj_entry->{object};
 
-    my @events = $log->limit( from => { request_id => $request_id }, to => { id => $id } );
+    warn Data::Dump::dump($obj_entry);
 
-    my @stack;
-    foreach my $event ( @events ) {
-        my ( $type, %data ) = @$event;
+    my $stack_dump = $stack_dump_cache{$obj} ||= do {
+        my @stack = $c->generate_stack_for_event( $request_id, $id );
 
-        if ( $type eq 'enter_action' ) {
-            push @stack, \%data;
-        } elsif ( $type eq 'leave_action' ) {
-            pop @stack;
-        }
+        "$obj_entry->{file} line $obj_entry->{line} (package $obj_entry->{package})\n"
+        . join("\n", map {"  in action $_->{action_name} (controller $_->{class})" } reverse @stack[2..$#stack]); # skip _DISPATCH and _ACTION
+    };
+
+    my $obj_dump = $object_dump_cache{$obj} ||= Data::Dump::dump($obj);
+
+    my $cycles = $cycle_report_cache{$obj} ||= $self->_cycle_report($obj);
+
+    $c->response->content_type("text/html");
+    $c->response->body(qq{
+<h1>Stack</h1>
+<pre>
+$stack_dump
+</pre>
+<h1>Cycles</h1>
+<pre>
+$cycles
+</pre>
+<h1>Object</h1>
+<pre>
+$obj_dump
+</pre>
+});
+}
+
+# stolen from Test::Memory::Cycle
+
+my %shortnames;
+my $new_shortname = "A";
+
+sub _ref_shortname {
+    my $ref = shift;
+    my $refstr = "$ref";
+    my $refdisp = $shortnames{ $refstr };
+    if ( !$refdisp ) {
+        my $sigil = ref($ref) . " ";
+        $sigil = '%' if $sigil eq "HASH ";
+        $sigil = '@' if $sigil eq "ARRAY ";
+        $sigil = '$' if $sigil eq "REF ";
+        $sigil = '&' if $sigil eq "CODE ";
+        $refdisp = $shortnames{ $refstr } = $sigil . $new_shortname++;
     }
 
-    my ( undef, %obj_event ) = @{ $events[-1] };
+    return $refdisp;
+}
 
-    my $stack_dump = join("\n",
-        "$obj_event{file} line $obj_event{line} (package $obj_event{package})",
-        map {"  in action $_->{action_name} (controller $_->{class})" } reverse @stack
-    );
-
-    my %objs_by_id = map { $_->{id} => $_->{object} } values %{ $trackers->{$request_id}->live_objects };
-
-    my $obj = $objs_by_id{$id};
-
-    use Data::Dumper;
-    my $obj_dump = Dumper($obj);
+sub _cycle_report {
+    my ( $self, $obj ) = @_;
 
     my @diags;
     my $cycle_no;
@@ -142,69 +180,34 @@ sub object : Local {
         }
     };
 
-    use Devel::Cycle;
     Devel::Cycle::find_cycle( $obj, $callback );
 
-    my $cycles = join("\n", @diags);
-
-    $c->response->content_type("text/html");
-    $c->response->body(qq{
-<h1>Stack</h1>
-<pre>
-$stack_dump
-</pre>
-<h1>Cycles</h1>
-<pre>
-$cycles
-</pre>
-<h1>Object</h1>
-<pre>
-$obj_dump
-</pre>
-        });
-}
-
-my %shortnames;
-my $new_shortname = "A";
-
-sub _ref_shortname {
-    my $ref = shift;
-    my $refstr = "$ref";
-    my $refdisp = $shortnames{ $refstr };
-    if ( !$refdisp ) {
-        my $sigil = ref($ref) . " ";
-        $sigil = '%' if $sigil eq "HASH ";
-        $sigil = '@' if $sigil eq "ARRAY ";
-        $sigil = '$' if $sigil eq "REF ";
-        $sigil = '&' if $sigil eq "CODE ";
-        $refdisp = $shortnames{ $refstr } = $sigil . $new_shortname++;
-    }
-
-    return $refdisp;
+    return join("\n", @diags);
 }
 
 
+
+tie my %object_size_cache, 'Tie::RefHash::Weak';
+my %event_log_dump_cache;
 
 
 sub request : Local {
     my ( $self, $c, $request_id ) = @_;
 
-    my $log = $c->devel_events_log;
+    my $log_output = $event_log_dump_cache{$request_id} ||= YAML::Syck::Dump($c->get_request_events($request_id));
 
-    my $trackers = $c->object_tracker_hash;
-
-    my @events = $log->limit( from => { request_id => $request_id }, to => "request_end" );
-
-    use YAML::Syck qw/Dump/;
-
-    my $log_output = Dump(@events);
+    my $tracker = $c->get_object_tracker_by_id($request_id);
+    my $live_objects = $tracker->live_objects;
 
     my @leaks = map {
-        my %rec = %$_;
-        $rec{size} = Devel::Size::total_size($_->{object});
-        $rec{class} = ref($_->{object});
-        \%rec,
-    } sort { $a->{id} <=> $b->{id} } values %{ $trackers->{$request_id}->live_objects };
+        my $object = $_->{object};
+
+        +{
+            %$_,
+            size => ( $object_size_cache{$object} ||= Devel::Size::total_size($object) ),
+            class => ref $object,
+        }
+    } sort { $a->{id} <=> $b->{id} } values %$live_objects;
 
 
     my @fields = qw/id size class/;
