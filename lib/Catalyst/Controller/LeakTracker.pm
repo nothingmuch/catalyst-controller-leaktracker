@@ -61,7 +61,7 @@ sub list_requests : Local {
 
     $fmt{id} = sub {
         my $id = shift;
-        return sprintf q{<a href="%s">%s</a>}, $c->uri_for("/request/$id"), $id;
+        return sprintf q{<a href="%s">%s</a>}, $c->uri_for( $self->action_for("request"), $id ), $id;
     };
 
     $fmt{time} = sub {
@@ -205,7 +205,7 @@ sub request : Local {
 
     $fmt{id} = sub {
         my $id = shift;
-        return sprintf q{<a href="%s">%s</a>}, $c->uri_for("/object/$request_id/$id"), $id;
+        return sprintf q{<a href="%s">%s</a>}, $c->uri_for( $self->action_for("object"), $request_id, $id ), $id;
     };
 
     $fmt{size} = sub {
