@@ -13,39 +13,43 @@ use Tie::RefHash::Weak ();
 use YAML::Syck ();
 
 my $size_of_empty_array = Devel::Size::total_size([]);
-tie my %leak_size_cache, 'Tie::RefHash::Weak';
 
 sub list_requests : Local {
     my ( $self, $c ) = @_;
 
-    my $log = $c->devel_events_log; # FIXME used for grepping, switch to exported when that api is available.
+    my $only_leaking = $c->request->param("only_leaking");
 
-    my @request_events = $c->get_all_request_events;
+    my $log = $c->devel_events_log; # FIXME used for repping, switch to exported when that api is available.
 
-    pop @request_events; # current request
+    my @request_ids = $c->get_all_request_ids;
+
+    pop @request_ids; # current request
 
     my @requests;
 
-    foreach my $req_events ( @request_events ) {
-        my $request_id = $req_events->{id};
-        my $events = $req_events->{events};
-
-        my ( undef, %req ) = @{ $events->[0] };
-
-        my $dispatch = ( $log->grep( dispatch => $events ) )[0] || next;
-        my ( undef, %dispatch ) = @$dispatch;
-
+    foreach my $request_id ( @request_ids ) {
         my $tracker = $c->get_object_tracker_by_id($request_id) || next;
         my $leaked = $tracker->live_objects;
 
-        my $size = $leak_size_cache{$tracker} ||= ( Devel::Size::total_size([ keys %$leaked ]) - $size_of_empty_array );
+        my $n_leaks = scalar( keys %$leaked );
+
+        next if $only_leaking and $n_leaks == 0;
+
+        my @events = $c->get_request_events($request_id);
+
+        my ( undef, %req ) = @{ $events[0] };
+
+        my $dispatch = $log->first( dispatch => \@events )|| next;
+        my ( undef, %dispatch ) = @$dispatch;
+
+        my $size = ( Devel::Size::total_size([ keys %$leaked ]) - $size_of_empty_array );
 
         push @requests, {
             id     => $request_id,
             time   => $req{time},
             uri    => $dispatch{uri},
             action => $dispatch{action_name},
-            leaks  => scalar( keys %$leaked ),
+            leaks  => $n_leaks,
             size   => $size,
         }
     }
@@ -85,10 +89,6 @@ sub list_requests : Local {
     $c->res->content_type("text/html");
 }
 
-tie my %cycle_report_cache, 'Tie::RefHash::Weak';
-tie my %object_dump_cache, 'Tie::RefHash::Weak';
-tie my %stack_dump_cache, 'Tie::RefHash::Weak';
-
 sub object : Local {
     my ( $self, $c, $request_id, $id ) = @_;
 
@@ -96,16 +96,17 @@ sub object : Local {
 
     my $obj = $obj_entry->{object};
 
-    my $stack_dump = $stack_dump_cache{$obj} ||= do {
-        my @stack = $c->generate_stack_for_event( $request_id, $id );
+    my @stack = $c->generate_stack_for_event( $request_id, $id );
 
-        "$obj_entry->{file} line $obj_entry->{line} (package $obj_entry->{package})\n"
-        . join("\n", map {"  in action $_->{action_name} (controller $_->{class})" } reverse @stack[2..$#stack]); # skip _DISPATCH and _ACTION
-    };
+    @stack = reverse @stack[2..$#stack] # skip _DISPATCH and _ACTION
 
-    my $obj_dump = $object_dump_cache{$obj} ||= Data::Dump::dump($obj);
+    my $stack_dump = "$obj_entry->{file} line $obj_entry->{line} (package $obj_entry->{package})\n"
+        . join("\n", map {"  in action $_->{action_name} (controller $_->{class})" } @stack);
 
-    my $cycles = $cycle_report_cache{$obj} ||= $self->_cycle_report($obj);
+    local $Data::Dumper::Maxdepth = $c->request->param("maxdepth") || 0;
+    my $obj_dump = Data::Dumper::Dumper($obj);
+
+    my $cycles = $self->_cycle_report($obj);
 
     $c->response->content_type("text/html");
     $c->response->body(qq{
@@ -179,14 +180,10 @@ sub _cycle_report {
 
 
 
-tie my %object_size_cache, 'Tie::RefHash::Weak';
-my %event_log_dump_cache;
-
-
 sub request : Local {
     my ( $self, $c, $request_id ) = @_;
 
-    my $log_output = $event_log_dump_cache{$request_id} ||= YAML::Syck::Dump($c->get_request_events($request_id));
+    my $log_output = YAML::Syck::Dump($c->get_request_events($request_id));
 
     my $tracker = $c->get_object_tracker_by_id($request_id);
     my $live_objects = $tracker->live_objects;
@@ -196,7 +193,7 @@ sub request : Local {
 
         +{
             %$_,
-            size => ( $object_size_cache{$object} ||= Devel::Size::total_size($object) ),
+            size => Devel::Size::total_size($object),
             class => ref $object,
         }
     } sort { $a->{id} <=> $b->{id} } values %$live_objects;
