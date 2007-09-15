@@ -12,12 +12,6 @@ use Devel::Size ();
 use Tie::RefHash::Weak ();
 use YAML::Syck ();
 
-sub default : Private {
-    my ( $self, $c ) = @_;
-
-    $c->forward('list_requests');
-}
-
 my $size_of_empty_array = Devel::Size::total_size([]);
 tie my %leak_size_cache, 'Tie::RefHash::Weak';
 
