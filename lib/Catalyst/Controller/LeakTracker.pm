@@ -14,6 +14,9 @@ use Devel::Size ();
 use Tie::RefHash::Weak ();
 use YAML::Syck ();
 
+use Template::Declare::Tags 'HTML';
+use Template::Declare::Anon;
+
 my $size_of_empty_array = Devel::Size::total_size([]);
 
 sub end : Private { } # don't get Root's one
@@ -65,11 +68,11 @@ sub list_requests : Local {
 
     $fmt{id} = sub {
         my $id = shift;
-        return sprintf q{<a href="%s">%s</a>}, $c->uri_for( $self->action_for("request"), $id ), $id;
+        return a { attr { href => $c->uri_for( $self->action_for("request"), $id ) } $id };
     };
 
     $fmt{time} = sub {
-        localtime(int(shift));
+        scalar localtime(int(shift));
     };
 
     $fmt{size} = sub {
@@ -79,21 +82,35 @@ sub list_requests : Local {
         $h->format(shift);
     };
 
-    $c->response->body( join "\n",
-        q{<table border="1" style="border: 1px solid black; padding: 0.3em">},
-            join('', "<tr>", ( map { qq{<th style="padding: 0.2em">$_</th>} } @fields ), "</tr>"),
-            ( map { my $req = $_;
-                join ( '', "<tr>",
-                    ( map { '<td style="padding: 0.2em">' . $fmt{$_}->($req->{$_}) . "</td>" } @fields ),
-                "</tr>" );
-            } @requests),
-        "</table>"
-    );
+    $c->response->body( process anon_template {
+        html {
+            head { }
+            body {
+                table {
+                    attr { border => 1, style => "border: 1px solid black; padding: 0.3em" };
+                    row { map { th { $_ } } @fields };
+
+                    foreach my $req ( @requests ) {
+                        row {
+                            foreach my $field (@fields) {
+                                my $formatter = $fmt{$field};
+
+                                cell {
+                                    attr { style => "padding: 0.2em" }
+                                    $formatter->( $req->{$field} );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
 
     $c->res->content_type("text/html");
 }
 
-sub object : Local {
+sub leak : Local {
     my ( $self, $c, $request_id, $id ) = @_;
 
     my $obj_entry = $c->get_object_entry_by_id($request_id, $id) || die "No such object: $id";
@@ -113,20 +130,19 @@ sub object : Local {
     my $cycles = $self->_cycle_report($obj);
 
     $c->response->content_type("text/html");
-    $c->response->body(qq{
-<h1>Stack</h1>
-<pre>
-$stack_dump
-</pre>
-<h1>Cycles</h1>
-<pre>
-$cycles
-</pre>
-<h1>Object</h1>
-<pre>
-$obj_dump
-</pre>
-});
+    $c->response->body( process anon_template {
+        html {
+            head { }
+            body { 
+                h1 { "Stack" }
+                pre { $stack_dump }
+                h1 { "Cycles" }
+                pre { $cycles }
+                h1 { "Object" }
+                pre { $obj_dump }
+            }
+        }
+    });
 }
 
 # stolen from Test::Memory::Cycle
@@ -209,7 +225,7 @@ sub request : Local {
 
     $fmt{id} = sub {
         my $id = shift;
-        return sprintf q{<a href="%s">%s</a>}, $c->uri_for( $self->action_for("object"), $request_id, $id ), $id;
+        return a { attr { href => $c->uri_for( $self->action_for("leak"), $request_id, $id ) } $id };
     };
 
     $fmt{size} = sub {
@@ -219,28 +235,39 @@ sub request : Local {
         $h->format(shift);
     };
 
-    my $leaks = join "\n",
-        q{<table border="1" style="border: 1px solid black; padding: 0.3em">},
-            join('', "<tr>", ( map { qq{<th style="padding: 0.2em">$_</th>} } @fields ), "</tr>"),
-            ( map { my $leak = $_;
-                join ( '', "<tr>",
-                    ( map { '<td style="padding: 0.2em">' . $fmt{$_}->($leak->{$_}) . "</td>" } @fields ),
-                "</tr>" );
-            } @leaks ),
-        "</table>";
+    my $leaks = anon_template {
+        table {
+            attr { border => "1", style => "border: 1px solid black; padding: 0.3em" }
+            row { map { th { attr { style => "padding: 0.2em" }; $_ } } @fields };
 
+            foreach my $leak ( @leaks ) {
+                row {
+                    foreach my $field ( @fields ) {
+                        my $formatter = $fmt{$field};
+
+                        cell {
+                            attr { style => "padding: 0.2em" }
+                            $formatter->($leak->{$field});
+                        }
+                    }
+                }
+            }
+        }
+    };
 
     $c->res->content_type("text/html");
 
-    $c->res->body(qq{
-<h1>Leaks</h1>
-<pre>
-$leaks
-</pre>
-<h1>Events</h1>
-<pre>
-$log_output
-</pre>
+    $c->res->body(process anon_template {
+        html {
+            head { }
+            body {
+                h1 { "Leaks" }
+                pre { &$leaks }
+
+                h1 { "Events" }
+                pre { $log_output }
+            }
+        }
     });
 }
 
@@ -330,6 +357,12 @@ If the C<maxdepth> param is set, C<$Data::Dumper::Maxdepth> is set to that value
 Artificially leak some objects, to make sure everything is working properly
 
 =back
+
+=head1 CAVEATS
+
+In forking environments each child will have it's own leak tracking. To avoid
+confusion run your apps under the development server or temporarily configure
+fastcgi or whatever to only use one child process.
 
 =head1 TODO
 
