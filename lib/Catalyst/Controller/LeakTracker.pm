@@ -100,7 +100,7 @@ sub object : Local {
 
     my @stack = $c->generate_stack_for_event( $request_id, $id );
 
-    @stack = reverse @stack[2..$#stack] # skip _DISPATCH and _ACTION
+    @stack = reverse @stack[2..$#stack]; # skip _DISPATCH and _ACTION
 
     my $stack_dump = "$obj_entry->{file} line $obj_entry->{line} (package $obj_entry->{package})\n"
         . join("\n", map {"  in action $_->{action_name} (controller $_->{class})" } @stack);
