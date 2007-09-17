@@ -242,7 +242,7 @@ $log_output
     });
 }
 
-sub leak : Local {
+sub make_leak : Local {
     my ( $self, $c, $n ) = @_;
 
     $n ||= 1;
