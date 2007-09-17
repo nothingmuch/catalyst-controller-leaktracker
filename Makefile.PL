@@ -8,7 +8,6 @@ WriteMakefile(
 	NAME         => 'Catalyst::Controller::LeakTracker',
 	VERSION_FROM => 'lib/Catalyst/Controller/LeakTracker.pm',
 	INSTALLDIRS  => 'site',
-	SIGN         => 1,
 	PL_FILES     => { },
 	PREREQ_PM    => {
         'Catalyst::Runtime' => '5.7010',
