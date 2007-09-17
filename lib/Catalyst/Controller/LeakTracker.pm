@@ -6,7 +6,7 @@ use base qw/Catalyst::Controller/;
 use strict;
 use warnings;
 
-use Data::Dump ();
+use Data::Dumper ();
 use Devel::Cycle ();
 use Devel::Size ();
 use Tie::RefHash::Weak ();
