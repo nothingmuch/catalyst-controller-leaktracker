@@ -14,6 +14,8 @@ use YAML::Syck ();
 
 my $size_of_empty_array = Devel::Size::total_size([]);
 
+sub end : Private { } # don't get Root's one
+
 sub list_requests : Local {
     my ( $self, $c ) = @_;
 
