@@ -283,14 +283,107 @@ Catalyst::Controller::LeakTracker - Inspect leaks found by L<Catalyst::Plugin::L
 		LeakTracker
 	/;
 
-
 	####
 
-	package MyApp::Controller::LeakTracker;
-
+	package MyApp::Controller::Leaks;
 	use base qw/Catalyst::Controller::LeakTracker/;
 
+    sub default : Private { 
+        my ( $self, $c ) = @_;
+        $c->forward("list_request"); # if you are so inclined
+    }
+
+    1; 
+
 =head1 DESCRIPTION
+
+This controller uses L<Catalyst::Controller::LeakTracker> to display leak info
+on a per request basis.
+
+=head1 ACTIONS
+
+=over 4
+
+=item list_requests
+
+List the leaking requests this process has handled so far.
+
+If the C<all> parameter is set to a true value, then all requests (even non
+leaking ones) are listed.
+
+=item request $request_id
+
+Detail the leaks for a given request, and also dump the event log for that request.
+
+=item object $request_id $event_id
+
+Detail the object created in $event_id.
+
+Displays a stack dump, a L<Devel::Cycle> report, and a L<Data::Dumper> output.
+
+If the C<maxdepth> param is set, C<$Data::Dumper::Maxdepth> is set to that value.
+
+=item make_leak [ $how_many ]
+
+Artificially leak some objects, to make sure everythign is working properly
+
+=back
+
+=head1 TODO
+
+This is yucky example code. But it's useful. Patches welcome.
+
+=over 4
+
+=item L<Template::Declare>
+
+Instead of yucky HTML strings
+
+=item CSS
+
+I can't do that well, I didn't bother trying
+
+=item Nicer displays
+
+    <pre> ... </pre>
+
+Only goes so far...
+
+The event log is in most dire need for this.
+
+=item Sorting, filtering etc
+
+Of objects, requests, etc. Javascript or serverside, it doesn't matter.
+
+=item JSON/YAML/XML feeds
+
+Maybe it's useful for someone.
+
+=back
+
+=head1 SEE ALSO
+
+L<Devel::Events>, L<Catalyst::Plugin::Leaktracker>,
+L<http://blog.jrock.us/articles/Plugging%20a%20leaky%20whale.pod>,
+L<Devel::Size>, L<Devel::Cycle>
+
+=head1 VERSION CONTROL
+
+This module is maintained using Darcs. You can get the latest version from
+L<http://nothingmuch.woobling.org/Catalyst-Controller-LeakTracker/>, and use
+C<darcs send> to commit changes.
+
+See L<http://nothingmuch.woobling.org/cpan> for more info.
+
+=head1 AUTHOR
+
+Yuval Kogman <nothingmuch@woobling.org>
+
+=head1 COPYRIGHT & LICENSE
+
+	Copyright (c) 2007 Yuval Kogman. All rights reserved
+	This program is free software; you can redistribute it and/or modify it
+	under the terms of the MIT license or the same terms as Perl itself.
 
 =cut
 
