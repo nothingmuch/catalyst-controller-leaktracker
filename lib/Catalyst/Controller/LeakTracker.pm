@@ -275,7 +275,7 @@ __END__
 
 =head1 NAME
 
-Catalyst::Controller::LeakTracker - Inspect leaks found by L<Catalyst::Plugin::Leaktracker>
+Catalyst::Controller::LeakTracker - Inspect leaks found by L<Catalyst::Plugin::LeakTracker>
 
 =head1 SYNOPSIS
 
