@@ -19,7 +19,7 @@ sub end : Private { } # don't get Root's one
 sub list_requests : Local {
     my ( $self, $c ) = @_;
 
-    my $only_leaking = $c->request->param("only_leaking");
+    my $only_leaking = !$c->request->param("all");
 
     my $log = $c->devel_events_log; # FIXME used for repping, switch to exported when that api is available.
 
