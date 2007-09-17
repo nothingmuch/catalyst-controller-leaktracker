@@ -41,8 +41,8 @@ sub list_requests : Local {
 
         my ( undef, %req ) = @{ $events[0] };
 
-        my $dispatch = $log->first( dispatch => \@events )|| next;
-        my ( undef, %dispatch ) = @$dispatch;
+        my (undef, %dispatch) = $log->matcher->first( match => "dispatch", events => \@events );
+        scalar keys %dispatch or next;
 
         my $size = ( Devel::Size::total_size([ keys %$leaked ]) - $size_of_empty_array );
 
