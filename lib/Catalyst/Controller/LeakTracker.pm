@@ -327,7 +327,7 @@ If the C<maxdepth> param is set, C<$Data::Dumper::Maxdepth> is set to that value
 
 =item make_leak [ $how_many ]
 
-Artificially leak some objects, to make sure everythign is working properly
+Artificially leak some objects, to make sure everything is working properly
 
 =back
 
