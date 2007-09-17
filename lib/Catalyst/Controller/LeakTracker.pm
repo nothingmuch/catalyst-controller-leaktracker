@@ -6,6 +6,8 @@ use base qw/Catalyst::Controller/;
 use strict;
 use warnings;
 
+our $VERSION = "0.01";
+
 use Data::Dumper ();
 use Devel::Cycle ();
 use Devel::Size ();
