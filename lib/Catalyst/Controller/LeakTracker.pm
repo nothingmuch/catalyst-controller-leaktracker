@@ -122,7 +122,7 @@ sub leak : Local {
     @stack = reverse @stack[2..$#stack]; # skip _DISPATCH and _ACTION
 
     my $stack_dump = "$obj_entry->{file} line $obj_entry->{line} (package $obj_entry->{package})\n"
-        . join("\n", map {"  in action $_->{action_name} (controller $_->{class})" } @stack);
+        . join("\n", map {"  in action $_->{action_name} $obj_entry->{file} line $obj_entry->{line} (controller $_->{class})" } @stack);
 
     local $Data::Dumper::Maxdepth = $c->request->param("maxdepth") || 0;
     my $obj_dump = Data::Dumper::Dumper($obj);
@@ -203,7 +203,9 @@ sub _cycle_report {
 sub request : Local {
     my ( $self, $c, $request_id ) = @_;
 
-    my $log_output = YAML::Syck::Dump($c->get_request_events($request_id));
+    my $log = $c->request->param("event_log");
+
+    my $log_output = $log && YAML::Syck::Dump($c->get_request_events($request_id));
 
     my $tracker = $c->get_object_tracker_by_id($request_id);
     my $live_objects = $tracker->live_objects;
@@ -264,8 +266,10 @@ sub request : Local {
                 h1 { "Leaks" }
                 pre { &$leaks }
 
-                h1 { "Events" }
-                pre { $log_output }
+                $log ? (
+                    h1 { "Events" }
+                    pre { $log_output }
+                ) : ()
             }
         }
     });
