@@ -1,0 +1,6 @@
+0.02
+    - use Template::Declare::Anon for the templates
+    - some doc fixes
+
+0.01
+    - Initial release
