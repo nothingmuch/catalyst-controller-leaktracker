@@ -6,7 +6,7 @@ use base qw/Catalyst::Controller/;
 use strict;
 use warnings;
 
-our $VERSION = "0.01";
+our $VERSION = "0.02";
 
 use Data::Dumper ();
 use Devel::Cycle ();
