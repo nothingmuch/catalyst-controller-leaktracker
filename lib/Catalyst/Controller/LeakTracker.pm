@@ -26,7 +26,7 @@ my $size_of_empty_array = Devel::Size::total_size([]);
 
 sub end : Private { } # don't get Root's one
 
-sub list_requests : Local {
+sub list_requests : Chained {
     my ( $self, $c ) = @_;
 
     my $only_leaking = !$c->request->param("all");
@@ -116,7 +116,7 @@ sub list_requests : Local {
     $c->res->content_type("text/html");
 }
 
-sub leak : Local {
+sub leak : Chained {
     my ( $self, $c, $request_id, $id ) = @_;
 
     my $obj_entry = $c->get_object_entry_by_id($request_id, $id) || die "No such object: $id";
@@ -206,7 +206,7 @@ sub _cycle_report {
 
 
 
-sub request : Local {
+sub request : Chained {
     my ( $self, $c, $request_id ) = @_;
 
     my $log = $c->request->param("event_log");
@@ -283,7 +283,7 @@ sub request : Local {
     });
 }
 
-sub make_leak : Local {
+sub make_leak : Chained {
     my ( $self, $c, $n ) = @_;
 
     $n ||= 1;
