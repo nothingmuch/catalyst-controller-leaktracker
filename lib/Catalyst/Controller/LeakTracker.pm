@@ -5,7 +5,7 @@ use parent qw(Catalyst::Controller);
 
 use Moose;
 
-our $VERSION = "0.02";
+our $VERSION = "0.03";
 
 use Data::Dumper ();
 use Devel::Cycle ();
