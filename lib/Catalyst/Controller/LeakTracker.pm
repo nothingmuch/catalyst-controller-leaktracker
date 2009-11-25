@@ -417,11 +417,7 @@ L<Devel::Size>, L<Devel::Cycle>
 
 =head1 VERSION CONTROL
 
-This module is maintained using Darcs. You can get the latest version from
-L<http://nothingmuch.woobling.org/Catalyst-Controller-LeakTracker/>, and use
-C<darcs send> to commit changes.
-
-See L<http://nothingmuch.woobling.org/cpan> for more info.
+L<http://github.com/nothingmuch/Catalyst-Controller-Leaktracker>
 
 =head1 AUTHOR
 
