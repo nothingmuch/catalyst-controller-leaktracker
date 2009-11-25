@@ -15,8 +15,8 @@ WriteMakefile(
         'Devel::Cycle' => 0,
         'Catalyst::Plugin::LeakTracker' => 0,
         'Data::Dumper' => 0,
-        'Template::Declare::Anon' => 0,
-        'Number::Bytes::Human' => 0,
+        'Template::Declare' => 0.42,
+        'Number::Bytes::Human' => 0.07,
 	},
 );
 
