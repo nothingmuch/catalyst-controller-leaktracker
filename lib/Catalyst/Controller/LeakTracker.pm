@@ -12,6 +12,7 @@ use Devel::Cycle ();
 use Devel::Size ();
 use Tie::RefHash::Weak ();
 use YAML::Syck ();
+use Scalar::Util qw(weaken);
 
 use namespace::clean -except => "meta";
 
@@ -294,7 +295,6 @@ sub make_leak : Local {
         $object->{foo}{self} = $object;
     }
 
-    use Scalar::Util qw/weaken/;
     my $object2 = bless {}, "class::b";
     $object2->{foo}{self} = $object2;
     weaken($object2->{foo}{self});
