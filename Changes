@@ -1,3 +1,6 @@
+0.04
+    - use Chained dispatch type for compatibility
+
 0.03
     - Update for more recent dependencies
     - Actual test suite
