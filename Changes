@@ -1,3 +1,7 @@
+0.03
+    - Update for more recent dependencies
+    - Actual test suite
+
 0.02
     - use Template::Declare::Anon for the templates
     - some doc fixes
