@@ -1,10 +1,9 @@
 #!/usr/bin/perl
 
 package Catalyst::Controller::LeakTracker;
-use base qw/Catalyst::Controller/;
+use parent qw(Catalyst::Controller);
 
-use strict;
-use warnings;
+use Moose;
 
 our $VERSION = "0.02";
 
@@ -14,8 +13,13 @@ use Devel::Size ();
 use Tie::RefHash::Weak ();
 use YAML::Syck ();
 
-use Template::Declare::Tags 'HTML';
-use Template::Declare::Anon;
+use namespace::clean -except => "meta";
+
+{
+    package Catalyst::Controller::LeakTracker::Template;
+
+    use Template::Declare::Tags 'HTML'; # conflicts with Moose
+}
 
 my $size_of_empty_array = Devel::Size::total_size([]);
 
@@ -67,6 +71,7 @@ sub list_requests : Local {
     my %fmt = map { $_ => sub { $_[0] } } @fields;
 
     $fmt{id} = sub {
+        package Catalyst::Controller::LeakTracker::Template;
         my $id = shift;
         return a { attr { href => $c->uri_for( $self->action_for("request"), $id ) } $id };
     };
@@ -82,7 +87,7 @@ sub list_requests : Local {
         $h->format(shift);
     };
 
-    $c->response->body( process anon_template {
+    $c->response->body( "" . do { package Catalyst::Controller::LeakTracker::Template;
         html {
             head { }
             body {
@@ -130,10 +135,10 @@ sub leak : Local {
     my $cycles = $self->_cycle_report($obj);
 
     $c->response->content_type("text/html");
-    $c->response->body( process anon_template {
+    $c->response->body( "" . do { package Catalyst::Controller::LeakTracker::Template;
         html {
             head { }
-            body { 
+            body {
                 h1 { "Stack" }
                 pre { $stack_dump }
                 h1 { "Cycles" }
@@ -226,6 +231,7 @@ sub request : Local {
     my %fmt = map { $_ => sub { $_[0] } } @fields;
 
     $fmt{id} = sub {
+        package Catalyst::Controller::LeakTracker::Template;
         my $id = shift;
         return a { attr { href => $c->uri_for( $self->action_for("leak"), $request_id, $id ) } $id };
     };
@@ -237,7 +243,8 @@ sub request : Local {
         $h->format(shift);
     };
 
-    my $leaks = anon_template {
+    my $leaks = sub {
+        package Catalyst::Controller::LeakTracker::Template;
         table {
             attr { border => "1", style => "border: 1px solid black; padding: 0.3em" }
             row { map { th { attr { style => "padding: 0.2em" }; $_ } } @fields };
@@ -259,12 +266,12 @@ sub request : Local {
 
     $c->res->content_type("text/html");
 
-    $c->res->body(process anon_template {
+    $c->res->body( "" . do { package Catalyst::Controller::LeakTracker::Template;
         html {
             head { }
             body {
                 h1 { "Leaks" }
-                pre { &$leaks }
+                pre { $leaks->() }
 
                 $log ? (
                     h1 { "Events" }
@@ -310,23 +317,25 @@ Catalyst::Controller::LeakTracker - Inspect leaks found by L<Catalyst::Plugin::L
 
 =head1 SYNOPSIS
 
+    # in MyApp.pm
+
 	package MyApp;
 
-	use Catalyst qw/
+	use Catalyst qw(
 		LeakTracker
-	/;
+	);
 
-	####
+	#### in SomeController.pm
 
 	package MyApp::Controller::Leaks;
-	use base qw/Catalyst::Controller::LeakTracker/;
+    use Moose;
 
-    sub default : Private { 
+    use parent qw(Catalyst::Controller::LeakTracker);
+
+    sub index :Path :Args(0) {
         my ( $self, $c ) = @_;
-        $c->forward("list_request"); # if you are so inclined
+        $c->forward("list_requests"); # redirect to request listing view
     }
-
-    1; 
 
 =head1 DESCRIPTION
 
