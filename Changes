@@ -1,3 +1,7 @@
+0.05
+    - switch from YAML::Syck to YAML::XS and add a missing dep (rbo &
+      nothingmuch)
+
 0.04
     - use Chained dispatch type for compatibility
 
