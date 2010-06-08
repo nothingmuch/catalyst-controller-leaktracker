@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 use Test::More;
+use URI;
 
 use lib "t/lib";
 
@@ -20,7 +21,11 @@ like( $list->content, qr{http://\S*?/request/\d+}, "link to request page" );
 
 my ( $request ) = ( $list->content =~ m{(http://\S*?/request/\d+)} );
 
-my $req_analysis = request($request);
+my $uri = URI->new($request);
+
+$uri->query_param( event_log => 1 );
+
+my $req_analysis = request($uri);
 
 ok( $req_analysis->is_success, "request analysis succeeed" );
 like( $req_analysis->content, qr/LeakedClass/, "leaked class detected" );

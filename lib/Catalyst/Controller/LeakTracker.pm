@@ -11,7 +11,7 @@ use Data::Dumper ();
 use Devel::Cycle ();
 use Devel::Size ();
 use Tie::RefHash::Weak ();
-use YAML::Syck ();
+use YAML::XS ();
 use Scalar::Util qw(weaken);
 
 use namespace::clean -except => "meta";
@@ -211,7 +211,7 @@ sub request : Chained {
 
     my $log = $c->request->param("event_log");
 
-    my $log_output = $log && YAML::Syck::Dump($c->get_request_events($request_id));
+    my $log_output = $log && YAML::XS::Dump($c->get_request_events($request_id));
 
     my $tracker = $c->get_object_tracker_by_id($request_id);
     my $live_objects = $tracker->live_objects;

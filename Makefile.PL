@@ -19,6 +19,7 @@ WriteMakefile(
         'Number::Bytes::Human' => 0.07,
         'Test::More' => 0.88,
         'Test::use::ok' => 0,
+        'YAML::XS' => 0,
 	},
 );
 
